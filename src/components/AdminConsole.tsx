@@ -3,14 +3,17 @@ import { signInWithPopup } from 'firebase/auth';
 import { apiRequest } from '../lib/api.ts';
 import { auth, googleAuthProvider } from '../lib/firebase.ts';
 import {
-  AuthUser,
   CATEGORIES,
+  LOCATIONS,
+  STATUSES,
+} from '../shared/campus.ts';
+
+import type {
+  AuthUser,
   CampusLocationConfig,
   CampusLocationName,
   ComplaintRecord,
   ComplaintStatus,
-  LOCATIONS,
-  STATUSES,
 } from '../shared/campus.ts';
 
 interface AdminConsoleProps {

@@ -3,13 +3,16 @@ import { signInWithPopup } from 'firebase/auth';
 import { apiRequest } from '../lib/api.ts';
 import { auth, googleAuthProvider } from '../lib/firebase.ts';
 import {
-  AuthUser,
   CATEGORIES,
+  DEPARTMENTS,
+  LOCATIONS,
+} from '../shared/campus.ts';
+
+import type {
+  AuthUser,
   Category,
   CampusLocationName,
   ComplaintRecord,
-  DEPARTMENTS,
-  LOCATIONS,
 } from '../shared/campus.ts';
 
 interface StudentPortalProps {

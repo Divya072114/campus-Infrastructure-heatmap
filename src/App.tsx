@@ -7,7 +7,7 @@ import { AnalyticsView } from './components/AnalyticsView.tsx';
 import { CampusHeatmapView } from './components/CampusHeatmapView.tsx';
 import { PhotoModal } from './components/PhotoModal.tsx';
 import { StudentPortal } from './components/StudentPortal.tsx';
-import { AuthUser, CampusLocationName } from './shared/campus.ts';
+import type { AuthUser, CampusLocationName } from './shared/campus.ts';
 
 type TabId = 'student' | 'heatmap' | 'analytics' | 'admin' | 'unauthorized';
 

@@ -4,7 +4,7 @@ import { adminAuth } from '../lib/firebase-admin.ts';
 import { verifySessionToken } from '../lib/security.ts';
 import { db } from '../db/index.ts';
 import { users } from '../db/schema.ts';
-import { AuthUser } from '../shared/campus.ts';
+import type { AuthUser } from '../shared/campus.ts';
 
 export interface AuthRequest extends Request {
   authUser?: AuthUser;
