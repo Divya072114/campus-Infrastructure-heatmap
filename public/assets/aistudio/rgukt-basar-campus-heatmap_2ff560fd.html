@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RGUKT Basar — Campus Heatmap of Problems (Standalone)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/heatmapjs@2.0.5/build/heatmap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/heatmapjs@2.0.5/plugins/leaflet-heatmap/leaflet-heatmap.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+      --accent: #1d4ed8;
+      --accent-hover: #1e40af;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    h1, h2, h3, h4, .brand { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+    header { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 40; }
+    .header-inner {
+      max-width: 1360px; margin: 0 auto; padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+    }
+    .brand { font-size: 18px; font-weight: 700; color: var(--text); text-decoration: none; white-space: nowrap; }
+    nav { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+    .nav-btn {
+      background: none; border: none; font-family: inherit; font-size: 14px; font-weight: 500;
+      color: var(--muted); cursor: pointer; padding: 6px 2px; border-bottom: 2px solid transparent; white-space: nowrap;
+    }
+    .nav-btn.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+    .btn-primary {
+      background: var(--accent); color: #fff; border: none; padding: 9px 16px; border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-dark {
+      background: #0f172a; color: #fff; border: none; padding: 9px 16px; border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+    .btn-outline {
+      background: var(--surface); color: #334155; border: 1px solid var(--border);
+      padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+    .btn-link { background: none; border: none; color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; padding: 0; text-decoration: none; }
+    .btn-link:hover { text-decoration: underline; }
+    main { max-width: 1360px; margin: 0 auto; padding: 24px; }
+    .page-intro { margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+    .page-intro h1 { font-size: 24px; font-weight: 700; }
+    .page-intro p { font-size: 13px; color: var(--muted); margin-top: 3px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+    .card-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .card-title { font-size: 15px; font-weight: 600; }
+    .card-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .toolbar { padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+    .segmented { display: inline-flex; background: #f1f5f9; padding: 4px; border-radius: 8px; gap: 4px; flex-wrap: wrap; }
+    .seg-btn { border: none; background: transparent; color: #475569; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+    .seg-btn.active { background: #fff; color: var(--text); box-shadow: 0 1px 2px rgba(15,23,42,0.08); }
+    .grid-12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px; }
+    .col-7 { grid-column: span 7; }
+    .col-5 { grid-column: span 5; }
+    .col-4 { grid-column: span 4; }
+    .col-3 { grid-column: span 3; }
+    @media (max-width: 1024px) { .col-7, .col-5, .col-4, .col-3 { grid-column: span 12; } }
+    #campusMap { width: 100%; height: 500px; background: #e2e8f0; }
+    .legend-bar { padding: 14px 20px; border-top: 1px solid var(--border); background: #f8fafc; display: flex; flex-direction: column; gap: 10px; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
+    .gradient-scale { width: 140px; height: 10px; border-radius: 999px; border: 1px solid var(--border); background: linear-gradient(90deg, #3b82f6 0%, #06b6d4 28%, #22c55e 52%, #f59e0b 76%, #dc2626 100%); }
+    .stat-strip { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--border); background: #f8fafc; }
+    .stat-cell { padding: 12px; text-align: center; border-right: 1px solid var(--border); }
+    .stat-cell:last-child { border-right: none; }
+    .stat-label { font-size: 11px; color: var(--muted); }
+    .stat-val { font-size: 20px; font-weight: 700; margin-top: 2px; }
+    .scroll-list { max-height: 430px; overflow-y: auto; }
+    .list-item { padding: 14px 18px; border-bottom: 1px solid #f1f5f9; }
+    .list-item:last-child { border-bottom: none; }
+    .meta-line { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 20px; }
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .kpi-card { padding: 18px 20px; }
+    .kpi-value { font-size: 24px; font-weight: 700; margin-top: 6px; }
+    .chart-box { padding: 18px 20px; }
+    .chart-wrap { height: 260px; position: relative; margin-top: 12px; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
+    label.field-label { display: block; font-size: 12px; font-weight: 600; color: #334155; margin-bottom: 6px; }
+    input[type="text"], input[type="email"], input[type="password"], input[type="tel"], input[type="number"], select, textarea {
+      width: 100%; padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 13px; background: #fff; color: var(--text);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); background: #f8fafc; padding: 11px 16px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    td { padding: 11px 16px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .alert { padding: 10px 14px; border-radius: 8px; font-size: 12px; font-weight: 500; margin-bottom: 14px; }
+    .alert-error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .alert-success { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .hidden { display: none !important; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.7); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 100; }
+    .modal-card { background: #fff; border-radius: 12px; max-width: 560px; width: 100%; overflow: hidden; border: 1px solid var(--border); }
+    .modal-card img { width: 100%; max-height: 68vh; object-fit: contain; display: block; background: #f8fafc; }
+    .leaflet-pane, .leaflet-top, .leaflet-bottom { z-index: 10 !important; }
+  </style>
+<script src="/_aistudio-iframe.js?v=29045eb3"></script></head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="#student" class="brand" onclick="navigateHome(); return false;">RGUKT Basar Heatmap</a>
+      <nav id="topNav"></nav>
+      <div id="topAction"></div>
+    </div>
+  </header>
+
+  <main>
+    <div class="page-intro">
+      <div>
+        <h1>Campus Heatmap of Problems — RGUKT Basar</h1>
+        <p>Rajiv Gandhi University of Knowledge Technologies, Basar, Nirmal, Telangana · Role-Based Standalone Edition</p>
+      </div>
+      <div class="mono" style="font-size: 12px; color: #64748b;" id="sessionStatusText"></div>
+    </div>
+
+    <!-- UNAUTHORIZED GUARD -->
+    <section id="tab-unauthorized" class="hidden">
+      <div class="card" style="max-width: 520px; margin: 0 auto; padding: 28px; text-align: center;">
+        <h2 style="font-size: 18px; color: #b91c1c;">403 Unauthorized — Administrator Access Only</h2>
+        <p style="font-size: 13px; color: #475569; margin-top: 8px;">
+          The RGUKT Basar campus heatmap, analytics dashboard, and student contact directory are strictly restricted to authenticated administrators.
+        </p>
+        <button class="btn-primary" style="margin-top: 16px;" onclick="switchTab('student')">Return to Student Portal</button>
+      </div>
+    </section>
+
+    <!-- STUDENT PORTAL -->
+    <section id="tab-student">
+      <div id="studentAuthPanel" class="card" style="max-width: 760px; margin: 0 auto;">
+        <div class="card-header">
+          <div>
+            <div class="card-title">RGUKT Basar — Student Complaint Portal</div>
+            <div class="card-sub">Register with your mandatory 10-digit mobile number or sign in to submit complaints</div>
+          </div>
+          <div class="segmented">
+            <button class="seg-btn active" id="stuTabLogin" onclick="setStudentAuthMode('login')">Student Login</button>
+            <button class="seg-btn" id="stuTabReg" onclick="setStudentAuthMode('register')">Register Account</button>
+          </div>
+        </div>
+        <div style="padding: 22px;">
+          <div id="studentAuthError" class="alert alert-error hidden"></div>
+          <form id="studentLoginForm" onsubmit="handleStudentLogin(event)">
+            <div class="form-grid">
+              <div>
+                <label class="field-label">RGUKT Email</label>
+                <input type="email" id="stuLoginEmail" required placeholder="sravani@rgukt.ac.in" />
+              </div>
+              <div>
+                <label class="field-label">Password</label>
+                <input type="password" id="stuLoginPass" required placeholder="Enter password" />
+              </div>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; flex-wrap:wrap; gap:10px;">
+              <button type="button" class="btn-link" onclick="fillDemoStudent()">Fill Demo Student (sravani@rgukt.ac.in / student123)</button>
+              <button type="submit" class="btn-primary">Sign In as Student</button>
+            </div>
+          </form>
+
+          <form id="studentRegForm" class="hidden" onsubmit="handleStudentRegister(event)">
+            <div class="form-grid">
+              <div>
+                <label class="field-label">Full Name</label>
+                <input type="text" id="stuRegName" required placeholder="e.g. Sai Kiran" />
+              </div>
+              <div>
+                <label class="field-label">RGUKT Roll Number</label>
+                <input type="text" id="stuRegRoll" required placeholder="e.g. B201245" />
+              </div>
+              <div>
+                <label class="field-label">Mobile Number (Mandatory · 10 digits)</label>
+                <input type="tel" id="stuRegMobile" required placeholder="e.g. 9876543210" />
+              </div>
+              <div>
+                <label class="field-label">RGUKT Email</label>
+                <input type="email" id="stuRegEmail" required placeholder="b201245@rgukt.ac.in" />
+              </div>
+              <div>
+                <label class="field-label">Department</label>
+                <select id="stuRegDept">
+                  <option>Computer Science &amp; Engineering</option>
+                  <option>Electronics &amp; Communications</option>
+                  <option>Mechanical Engineering</option>
+                  <option>Electrical Engineering</option>
+                  <option>Civil Engineering</option>
+                  <option>PUC (Pre-University Course)</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label">Password</label>
+                <input type="password" id="stuRegPass" required minlength="4" placeholder="Minimum 4 characters" />
+              </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; margin-top:16px;">
+              <button type="submit" class="btn-dark">Create Student Account</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div id="studentWorkspace" class="hidden">
+        <div class="card toolbar">
+          <div>
+            <div class="card-sub" id="stuSessionMeta"></div>
+            <div class="card-title" id="stuSessionName"></div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span style="font-size:12px;">Mobile: <strong class="mono" id="stuMobileDisplay"></strong></span>
+            <input type="tel" id="stuMobileUpdateInput" style="width:130px; padding:6px 8px; font-size:12px;" placeholder="10-digit mobile" />
+            <button type="button" class="btn-outline" onclick="updateStudentMobile()">Update Mobile</button>
+          </div>
+        </div>
+
+        <div class="grid-12">
+          <div class="card col-5" style="padding:20px;">
+            <div class="card-title">Submit RGUKT Basar Complaint</div>
+            <div class="card-sub" style="margin-bottom:14px;">Maintenance staff use your registered mobile to coordinate repair visits</div>
+            <div id="cmpSubmitAlert" class="alert alert-success hidden"></div>
+            <form onsubmit="handleComplaintSubmit(event)" style="display:flex; flex-direction:column; gap:12px;">
+              <div>
+                <label class="field-label">Complaint Title</label>
+                <input type="text" id="cmpTitle" required placeholder="e.g. Water cooler leaking near BH-1 stairs" />
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label class="field-label">Category</label>
+                  <select id="cmpCategory"></select>
+                </div>
+                <div>
+                  <label class="field-label">Campus Location</label>
+                  <select id="cmpLocation"></select>
+                </div>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label class="field-label">Building / Block</label>
+                  <input type="text" id="cmpBlock" required placeholder="e.g. BH-1 East Wing" />
+                </div>
+                <div>
+                  <label class="field-label">Floor / Room Number</label>
+                  <input type="text" id="cmpFloor" placeholder="e.g. 2nd Floor · Room 204" />
+                </div>
+              </div>
+              <div>
+                <label class="field-label">Description</label>
+                <textarea id="cmpDesc" rows="3" required placeholder="Describe problem severity and exact spot..."></textarea>
+              </div>
+              <div>
+                <label class="field-label">Optional Photo Upload</label>
+                <input type="file" id="cmpPhotoInput" accept="image/*" onchange="handlePhotoUpload(event)" />
+              </div>
+              <button type="submit" class="btn-primary">Submit Complaint</button>
+            </form>
+          </div>
+
+          <div class="card col-7" style="overflow:hidden;">
+            <div class="card-header">
+              <div>
+                <div class="card-title">My Submitted Complaints</div>
+                <div class="card-sub">Reported → Acknowledged → In Progress → Resolved</div>
+              </div>
+            </div>
+            <div class="scroll-list" id="studentHistoryList" style="max-height:540px;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ADMIN-ONLY: INTERACTIVE HEATMAP -->
+    <section id="tab-heatmap" class="hidden">
+      <div class="card toolbar">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <select id="mapLocationSelect" onchange="setMapLocationScope(this.value)" style="width:auto;"></select>
+          <button id="backCampusBtn" class="btn-outline hidden" style="color:#1d4ed8; border-color:#bfdbfe; background:#eff6ff;" onclick="setMapLocationScope('campus')">← Return to Complete Campus Heatmap</button>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <div class="segmented" id="mapCategoryFilters"></div>
+          <div class="segmented">
+            <button class="seg-btn active" id="scopeAllBtn" onclick="setMapScope('all')">All</button>
+            <button class="seg-btn" id="scopeActiveBtn" onclick="setMapScope('active')">Unresolved</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-12">
+        <div class="card col-7" style="overflow:hidden;">
+          <div class="card-header">
+            <div>
+              <div class="card-title" id="mapHeaderTitle">RGUKT Basar — Complete Campus Heatmap</div>
+              <div class="card-sub">OpenStreetMap Basar, Nirmal, Telangana (18.8820°N, 77.9208°E) · Approximate configurable zones</div>
+            </div>
+            <div class="mono" style="font-size:12px;" id="mapVisibleCount">0 records</div>
+          </div>
+          <div id="campusMap"></div>
+          <div class="legend-bar">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <span style="font-size:12px; font-weight:600;">Intensity Legend</span>
+              <span style="font-size:11px; color:#64748b;">Low</span>
+              <div class="gradient-scale"></div>
+              <span style="font-size:11px; color:#64748b;">Critical</span>
+            </div>
+            <div id="hotspotQuickButtons" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+          </div>
+        </div>
+
+        <div class="card col-5" style="overflow:hidden;">
+          <div class="card-header">
+            <div>
+              <div class="card-sub" id="inspectorCode">Location Inspector</div>
+              <div class="card-title" style="font-size:17px;" id="inspectorName">Boys Hostel Complex</div>
+              <div class="card-sub" id="inspectorDesc"></div>
+            </div>
+            <div class="mono" style="font-size:11px; color:#64748b;" id="inspectorCoords"></div>
+          </div>
+          <div class="stat-strip">
+            <div class="stat-cell"><div class="stat-label">Total</div><div class="stat-val mono" id="insTotal">0</div></div>
+            <div class="stat-cell"><div class="stat-label" style="color:#b45309;">Pending</div><div class="stat-val mono" style="color:#b45309;" id="insPending">0</div></div>
+            <div class="stat-cell"><div class="stat-label" style="color:#1d4ed8;">In Progress</div><div class="stat-val mono" style="color:#1d4ed8;" id="insProgress">0</div></div>
+            <div class="stat-cell"><div class="stat-label" style="color:#15803d;">Resolved</div><div class="stat-val mono" style="color:#15803d;" id="insResolved">0</div></div>
+          </div>
+          <div class="scroll-list" id="inspectorList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ADMIN-ONLY: ANALYTICS -->
+    <section id="tab-analytics" class="hidden">
+      <div class="kpi-grid">
+        <div class="card kpi-card"><div class="card-sub">Total Complaints</div><div class="kpi-value mono" id="kpiTotal">0</div><div class="card-sub" id="kpiTotalSub"></div></div>
+        <div class="card kpi-card"><div class="card-sub">Most Reported Category</div><div class="kpi-value" id="kpiTopCat">—</div><div class="card-sub" id="kpiTopCatSub"></div></div>
+        <div class="card kpi-card"><div class="card-sub">Highest Complaint Location</div><div class="kpi-value" style="font-size:18px;" id="kpiTopLoc">—</div><div class="card-sub" id="kpiTopLocSub"></div></div>
+        <div class="card kpi-card"><div class="card-sub">Resolution Rate</div><div class="kpi-value mono" style="color:#15803d;" id="kpiResRate">0%</div><div class="card-sub" id="kpiResSub"></div></div>
+      </div>
+      <div class="grid-12" style="margin-bottom:20px;">
+        <div class="card chart-box col-5"><div class="card-title">Category-Wise Volume</div><div class="chart-wrap"><canvas id="chartCategory"></canvas></div></div>
+        <div class="card chart-box col-4"><div class="card-title">RGUKT Basar Location Breakdown</div><div class="chart-wrap"><canvas id="chartLocation"></canvas></div></div>
+        <div class="card chart-box col-3"><div class="card-title">Workflow Status Mix</div><div class="chart-wrap"><canvas id="chartStatus"></canvas></div></div>
+      </div>
+      <div class="card" style="overflow-x:auto;">
+        <div class="card-header"><div class="card-title">Location Statistics Matrix (Click row to open location heatmap)</div></div>
+        <table>
+          <thead><tr><th>Campus Location</th><th style="text-align:right;">Total</th><th style="text-align:right;">Reported</th><th style="text-align:right;">Acknowledged</th><th style="text-align:right;">In Progress</th><th style="text-align:right;">Resolved</th></tr></thead>
+          <tbody id="analyticsMatrixBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ADMIN LOGIN & CONSOLE -->
+    <section id="tab-admin" class="hidden">
+      <div id="adminAuthPanel" class="card" style="max-width:440px; margin:0 auto; padding:24px;">
+        <div class="card-sub" style="color:#1d4ed8; font-weight:600;">Administrator Authentication Required</div>
+        <h2 style="font-size:18px; margin-top:4px;">RGUKT Basar — Admin Login</h2>
+        <p class="card-sub" style="margin-bottom:16px;">Heatmap, analytics, and student contact numbers are accessible only after Admin sign-in.</p>
+        <div id="adminAuthError" class="alert alert-error hidden"></div>
+        <form onsubmit="handleAdminLogin(event)" style="display:flex; flex-direction:column; gap:12px;">
+          <div><label class="field-label">Admin Email</label><input type="email" id="admEmail" required placeholder="admin@rgukt.ac.in" /></div>
+          <div><label class="field-label">Password</label><input type="password" id="admPass" required placeholder="Enter password" /></div>
+          <button type="submit" class="btn-dark" style="width:100%; padding:11px;">Sign In as Administrator</button>
+          <button type="button" class="btn-link" onclick="fillDemoAdmin()">Fill Demo Admin (admin@rgukt.ac.in / admin123)</button>
+        </form>
+      </div>
+
+      <div id="adminWorkspace" class="hidden">
+        <div class="card toolbar">
+          <div>
+            <div class="card-sub">RGUKT Basar Estates &amp; Maintenance Triage</div>
+            <div class="card-title">Campus Estates Administrator</div>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn-outline" onclick="toggleCoordEditor()">Configure Building Locations</button>
+            <button class="btn-outline" onclick="exportCsv()">Export CSV</button>
+            <button class="btn-outline" onclick="resetDemoData()">Reset Demo Data</button>
+          </div>
+        </div>
+
+        <div id="coordEditorCard" class="card hidden" style="padding:20px; margin-bottom:20px;">
+          <div class="card-title">RGUKT Basar — Building Locations &amp; Boundary Configuration</div>
+          <div class="card-sub" style="margin-bottom:12px;">Configure Lat, Lng, and boundary radius (meters) for each campus zone</div>
+          <div id="coordInputsGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:12px;"></div>
+          <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:14px;">
+            <button type="button" class="btn-outline" onclick="resetCoords()">Reset Defaults</button>
+            <button type="button" class="btn-primary" onclick="saveCoords()">Save Locations</button>
+          </div>
+        </div>
+
+        <div class="card" style="overflow:hidden;">
+          <div style="padding:14px 16px; border-bottom:1px solid var(--border); display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
+            <input type="text" id="admSearch" placeholder="Search ID, block, student, mobile..." oninput="renderAdminTable()" />
+            <select id="admFilterCat" onchange="renderAdminTable()"></select>
+            <select id="admFilterLoc" onchange="renderAdminTable()"></select>
+            <select id="admFilterStatus" onchange="renderAdminTable()">
+              <option value="All">All Statuses</option>
+              <option value="Reported">Reported</option>
+              <option value="Acknowledged">Acknowledged</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Resolved">Resolved</option>
+            </select>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead><tr><th>ID</th><th>Complaint &amp; Spot</th><th>Category</th><th>Location</th><th>Student &amp; Mobile</th><th>Submitted</th><th>Status</th><th style="text-align:right;">Actions</th></tr></thead>
+              <tbody id="adminTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="photoModal" class="modal-backdrop hidden" onclick="closePhotoModal()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="card-header"><div class="card-title">Attached Photo</div><button class="btn-outline" onclick="closePhotoModal()">Close</button></div>
+      <img id="photoModalImg" src="" alt="Complaint attachment" />
+    </div>
+  </div>
+
+  <script>
+    const CATEGORIES = ['Water', 'Electricity', 'Cleanliness', 'Internet', 'Maintenance'];
+    const STATUSES = ['Reported', 'Acknowledged', 'In Progress', 'Resolved'];
+    const LOCATIONS = [
+      'Academic Block 1 (AB-1)',
+      'Academic Block 2 (AB-2)',
+      'Boys Hostel Complex',
+      'Girls Hostel Complex',
+      'Mess & Campus Canteen',
+      'Central Library & Admin Block'
+    ];
+    const DEFAULT_COORDS = {
+      'Academic Block 1 (AB-1)': { lat: 18.8826, lng: 77.9212, radiusMeters: 95, code: 'AB-1', desc: 'PUC & Engineering lecture halls and CSE/ECE rooms' },
+      'Academic Block 2 (AB-2)': { lat: 18.8814, lng: 77.9216, radiusMeters: 90, code: 'AB-2', desc: 'Engineering labs and Mechanical/Civil workshops' },
+      'Boys Hostel Complex': { lat: 18.8834, lng: 77.9195, radiusMeters: 115, code: 'BH-COMPLEX', desc: 'BH-1 & BH-2 residential wings and water coolers' },
+      'Girls Hostel Complex': { lat: 18.8805, lng: 77.9197, radiusMeters: 110, code: 'GH-COMPLEX', desc: 'GH-1 & GH-2 residential hostels and study halls' },
+      'Mess & Campus Canteen': { lat: 18.8821, lng: 77.9187, radiusMeters: 85, code: 'MESS-CANT', desc: 'Dining mess halls and campus student canteen' },
+      'Central Library & Admin Block': { lat: 18.8819, lng: 77.9229, radiusMeters: 95, code: 'LIB-ADM', desc: 'Central Library and Administrative Building' }
+    };
+    const DEMO_STUDENTS = [
+      { id: 'stu-rgukt-1', name: 'Sravani Reddy', rollNumber: 'B191402', email: 'sravani@rgukt.ac.in', mobileNumber: '9876543210', department: 'Computer Science & Engineering', password: 'student123' },
+      { id: 'stu-rgukt-2', name: 'Karthik Goud', rollNumber: 'B192118', email: 'karthik@rgukt.ac.in', mobileNumber: '9849012345', department: 'Mechanical Engineering', password: 'student123' }
+    ];
+    const DEMO_COMPLAINTS = [
+      { id: 'CMP-1001', title: 'DEMO: Drinking water RO cooler pipeline leak on 2nd floor', description: 'Water seepage behind RO cooler near east staircase.', category: 'Water', location: 'Boys Hostel Complex', buildingBlock: 'BH-1 East Wing', floorRoom: '2nd Floor · Corridor B', status: 'Reported', studentId: 'stu-rgukt-2', studentName: 'Karthik Goud', rollNumber: 'B192118', studentMobile: '9849012345', createdAt: '2026-11-18T08:15:00Z', isDemo: true },
+      { id: 'CMP-1002', title: 'DEMO: Overhead tank float valve overflow in BH-2', description: 'Terrace tank overflows every morning around 6:30 AM.', category: 'Water', location: 'Boys Hostel Complex', buildingBlock: 'BH-2 Block', floorRoom: 'Terrace / 3rd Floor', status: 'Acknowledged', studentId: 'stu-rgukt-2', studentName: 'Karthik Goud', rollNumber: 'B192118', studentMobile: '9849012345', createdAt: '2026-11-17T14:40:00Z', isDemo: true },
+      { id: 'CMP-1003', title: 'DEMO: Corridor tube lights flickering in BH-1 Ground Floor', description: 'Three LED battens near study room entrance flicker at night.', category: 'Electricity', location: 'Boys Hostel Complex', buildingBlock: 'BH-1 Main Wing', floorRoom: 'Ground Floor · Room G-14', status: 'In Progress', studentId: 'stu-rgukt-2', studentName: 'Karthik Goud', rollNumber: 'B192118', studentMobile: '9849012345', createdAt: '2026-11-19T19:20:00Z', isDemo: true },
+      { id: 'CMP-1004', title: 'DEMO: Broken window latch in BH-2 reading hall', description: 'Latch bracket snapped off causing metal frame to bang.', category: 'Maintenance', location: 'Boys Hostel Complex', buildingBlock: 'BH-2 Study Hall', floorRoom: '1st Floor · Hall 102', status: 'Resolved', studentId: 'stu-rgukt-2', studentName: 'Karthik Goud', rollNumber: 'B192118', studentMobile: '9849012345', createdAt: '2026-11-12T10:05:00Z', isDemo: true },
+      { id: 'CMP-1005', title: 'DEMO: Campus LAN & Wi-Fi packet loss in CSE Lab-2', description: 'Switch port rack B loses uplink every 20 minutes during lab.', category: 'Internet', location: 'Academic Block 1 (AB-1)', buildingBlock: 'AB-1 CSE Wing', floorRoom: '2nd Floor · Lab 204', status: 'Reported', studentId: 'stu-rgukt-1', studentName: 'Sravani Reddy', rollNumber: 'B191402', studentMobile: '9876543210', createdAt: '2026-11-19T11:10:00Z', isDemo: true },
+      { id: 'CMP-1006', title: 'DEMO: Classroom projector HDMI wall socket loose', description: 'Display disconnects when podium cable is moved.', category: 'Maintenance', location: 'Academic Block 1 (AB-1)', buildingBlock: 'AB-1 North Block', floorRoom: '1st Floor · Classroom 108', status: 'In Progress', studentId: 'stu-rgukt-1', studentName: 'Sravani Reddy', rollNumber: 'B191402', studentMobile: '9876543210', createdAt: '2026-11-16T09:50:00Z', isDemo: true },
+      { id: 'CMP-1007', title: 'DEMO: UPS backup tripping in AB-1 Ground Floor', description: 'Row C power sockets trip during generator changeover.', category: 'Electricity', location: 'Academic Block 1 (AB-1)', buildingBlock: 'AB-1 South Wing', floorRoom: 'Ground Floor · Room 005', status: 'Resolved', studentId: 'stu-rgukt-1', studentName: 'Sravani Reddy', rollNumber: 'B191402', studentMobile: '9876543210', createdAt: '2026-11-10T16:00:00Z', isDemo: true },
+      { id: 'CMP-1008', title: 'DEMO: Solar hot water pipeline pressure low in GH-1', description: 'Morning hot water does not reach 3rd-floor washrooms.', category: 'Water', location: 'Girls Hostel Complex', buildingBlock: 'GH-1 West Wing', floorRoom: '3rd Floor · Washroom Block', status: 'Acknowledged', studentId: 'stu-rgukt-1', studentName: 'Sravani Reddy', rollNumber: 'B191402', studentMobile: '9876543210', createdAt: '2026-11-19T06:45:00Z', isDemo: true },
+      { id: 'CMP-1009', title: 'DEMO: Hostel corridor Wi-Fi access point offline', description: 'AP-GH2-03 offline; rooms 210-224 cannot reach intranet.', category: 'Internet', location: 'Girls Hostel Complex', buildingBlock: 'GH-2 Block', floorRoom: '2nd Floor · Rooms 210-224', status: 'Reported', studentId: 'stu-rgukt-1', studentName: 'Sravani Reddy', rollNumber: 'B191402', studentMobile: '9876543210', createdAt: '2026-11-20T08:10:00Z', isDemo: true },
+      { id: 'CMP-1010', title: 'DEMO: Overflowing waste bins behind Mess Hall 1 exit', description: 'Food waste bins near dishwashing exit need immediate clearing.', category: 'Cleanliness', location: 'Mess & Campus Canteen', buildingBlock: 'Mess Hall 1', floorRoom: 'Ground Floor · Rear Exit', status: 'Reported', studentId: 'stu-rgukt-2', studentName: 'Karthik Goud', rollNumber: 'B192118', studentMobile: '9849012345', createdAt: '2026-11-20T07:45:00Z', isDemo: true },
+      { id: 'CMP-1011', title: 'DEMO: Clogged handwash sink drain near Canteen counter', description: 'Drainage pipe backs up during lunch rush hours.', category: 'Water', location: 'Mess & Campus Canteen', buildingBlock: 'Student Canteen', floorRoom: 'Ground Floor · Wash Area', status: 'In Progress', studentId: 'stu-rgukt-1', studentName: 'Sravani Reddy', rollNumber: 'B191402', studentMobile: '9876543210', createdAt: '2026-11-18T13:20:00Z', isDemo: true },
+      { id: 'CMP-1012', title: 'DEMO: Dining hall exhaust fan rattling loudly', description: 'South wall exhaust fan vibrates heavily.', category: 'Cleanliness', location: 'Mess & Campus Canteen', buildingBlock: 'Mess Hall 2', floorRoom: 'Ground Floor · Dining Bay', status: 'Acknowledged', studentId: 'stu-rgukt-2', studentName: 'Karthik Goud', rollNumber: 'B192118', studentMobile: '9849012345', createdAt: '2026-11-19T12:35:00Z', isDemo: true },
+      { id: 'CMP-1013', title: 'DEMO: Three-phase sub-panel breaker tripping in Mechanical Workshop', description: 'Lathe bay MCB trips when multiple machines start.', category: 'Electricity', location: 'Academic Block 2 (AB-2)', buildingBlock: 'AB-2 Mechanical Workshop', floorRoom: 'Ground Floor · Lathe Bay', status: 'In Progress', studentId: 'stu-rgukt-2', studentName: 'Karthik Goud', rollNumber: 'B192118', studentMobile: '9849012345', createdAt: '2026-11-17T10:25:00Z', isDemo: true },
+      { id: 'CMP-1014', title: 'DEMO: Loose floor drainage grating near CNC Lab', description: 'Metal coolant trench cover shifts when stepped on.', category: 'Maintenance', location: 'Academic Block 2 (AB-2)', buildingBlock: 'AB-2 CNC & Metallurgy', floorRoom: 'Ground Floor · Bay 2', status: 'Reported', studentId: 'stu-rgukt-2', studentName: 'Karthik Goud', rollNumber: 'B192118', studentMobile: '9849012345', createdAt: '2026-11-18T15:10:00Z', isDemo: true },
+      { id: 'CMP-1015', title: 'DEMO: Weak eduroam signal in Central Library 2nd-floor reading room', description: 'Digital journal terminals lose Wi-Fi near west window.', category: 'Internet', location: 'Central Library & Admin Block', buildingBlock: 'Central Library', floorRoom: '2nd Floor · Reading Hall', status: 'Reported', studentId: 'stu-rgukt-1', studentName: 'Sravani Reddy', rollNumber: 'B191402', studentMobile: '9876543210', createdAt: '2026-11-19T09:15:00Z', isDemo: true },
+      { id: 'CMP-1016', title: 'DEMO: Courtyard storm drain choked with dry leaves', description: 'Rainwater accumulates near Admin Block entrance steps.', category: 'Cleanliness', location: 'Central Library & Admin Block', buildingBlock: 'Administrative Plaza', floorRoom: 'Ground Floor · Main Portico', status: 'Resolved', studentId: 'stu-rgukt-2', studentName: 'Karthik Goud', rollNumber: 'B192118', studentMobile: '9849012345', createdAt: '2026-11-14T08:00:00Z', isDemo: true }
+    ];
+
+    const KEYS = { complaints: 'rgukt_s_cmp_v2', students: 'rgukt_s_stu_v2', coords: 'rgukt_s_loc_v2', session: 'rgukt_s_ses_v2' };
+    let state = { complaints: [], students: [], coords: {}, session: null, activeTab: 'student', mapCategory: 'All', mapScope: 'all', mapLocScope: 'campus', inspectorLoc: 'Boys Hostel Complex', uploadedPhoto: null };
+    let map = null, heatmapOverlay = null, overlayLayer = null, charts = [];
+
+    function esc(str) { return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function fmtDate(iso) { try { return new Date(iso).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }); } catch { return iso; } }
+    function normalizeMobile(raw) { const d = String(raw || '').replace(/\D/g,''); const t = d.length === 12 && d.startsWith('91') ? d.slice(2) : d; return /^[6-9]\d{9}$/.test(t) ? t : null; }
+
+    function loadStorage() {
+      try { state.complaints = JSON.parse(localStorage.getItem(KEYS.complaints)) || JSON.parse(JSON.stringify(DEMO_COMPLAINTS)); } catch { state.complaints = JSON.parse(JSON.stringify(DEMO_COMPLAINTS)); }
+      try { state.students = JSON.parse(localStorage.getItem(KEYS.students)) || JSON.parse(JSON.stringify(DEMO_STUDENTS)); } catch { state.students = JSON.parse(JSON.stringify(DEMO_STUDENTS)); }
+      try { state.coords = JSON.parse(localStorage.getItem(KEYS.coords)) || JSON.parse(JSON.stringify(DEFAULT_COORDS)); } catch { state.coords = JSON.parse(JSON.stringify(DEFAULT_COORDS)); }
+      try { state.session = JSON.parse(localStorage.getItem(KEYS.session)); } catch { state.session = null; }
+    }
+    function saveStorage() {
+      localStorage.setItem(KEYS.complaints, JSON.stringify(state.complaints));
+      localStorage.setItem(KEYS.students, JSON.stringify(state.students));
+      localStorage.setItem(KEYS.coords, JSON.stringify(state.coords));
+      localStorage.setItem(KEYS.session, JSON.stringify(state.session));
+    }
+
+    function renderTopNav() {
+      const isAdm = state.session && state.session.role === 'admin';
+      const isStu = state.session && state.session.role === 'student';
+      const nav = document.getElementById('topNav');
+      const act = document.getElementById('topAction');
+      const items = isAdm
+        ? [{id:'heatmap',label:'Campus Heatmap'},{id:'analytics',label:'Analytics'},{id:'admin',label:'Admin Console'}]
+        : isStu
+        ? [{id:'student',label:'Student Portal'}]
+        : [{id:'student',label:'Student Portal'},{id:'admin',label:'Admin Login'}];
+      nav.innerHTML = items.map(i => `<button class="nav-btn ${state.activeTab===i.id?'active':''}" onclick="switchTab('${i.id}')">${i.label}</button>`).join('');
+      act.innerHTML = state.session
+        ? `<button class="btn-dark" onclick="logoutSession()">Sign Out</button>`
+        : `<button class="btn-primary" onclick="switchTab('${state.activeTab==='admin'?'student':'admin'}')">${state.activeTab==='admin'?'Student Portal':'Admin Login'}</button>`;
+      document.getElementById('sessionStatusText').textContent = isAdm ? 'Admin Session' : isStu ? 'Student: ' + state.session.rollNumber : 'Guest';
+    }
+
+    function navigateHome() { switchTab(state.session && state.session.role === 'admin' ? 'heatmap' : 'student'); }
+
+    function switchTab(tab) {
+      const isAdm = state.session && state.session.role === 'admin';
+      const isStu = state.session && state.session.role === 'student';
+      const adminProtected = ['heatmap', 'analytics', 'admin'].includes(tab);
+
+      if (isStu && adminProtected) {
+        state.activeTab = 'unauthorized';
+      } else if (!isAdm && (tab === 'heatmap' || tab === 'analytics')) {
+        state.activeTab = 'admin';
+      } else {
+        state.activeTab = tab;
+      }
+
+      ['unauthorized', 'student', 'heatmap', 'analytics', 'admin'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== state.activeTab);
+      });
+      renderTopNav();
+
+      if (state.activeTab === 'heatmap' && isAdm) {
+        if (!map) initMap();
+        setTimeout(() => { map.invalidateSize(); renderHeatmap(); }, 60);
+      } else if (state.activeTab === 'analytics' && isAdm) {
+        renderAnalytics();
+      } else if (state.activeTab === 'student') {
+        renderStudentView();
+      } else if (state.activeTab === 'admin') {
+        renderAdminView();
+      }
+    }
+
+    function deterministicSubOffset(text, radiusMeters) {
+      let hash = 0;
+      for (let i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+      const angle = ((hash % 360) * Math.PI) / 180;
+      const dist = Math.max(12, radiusMeters * 0.65) * (0.15 + ((hash % 65) / 100) * 0.55);
+      return { dLat: (dist * Math.sin(angle)) / 111320, dLng: (dist * Math.cos(angle)) / (111320 * Math.cos(18.882 * Math.PI / 180)) };
+    }
+
+    function initMap() {
+      map = L.map('campusMap', { center: [18.8820, 77.9208], zoom: 17 });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap · RGUKT Basar', maxZoom: 19 }).addTo(map);
+      if (typeof HeatmapOverlay !== 'undefined') {
+        heatmapOverlay = new HeatmapOverlay({ radius: 56, maxOpacity: 0.78, scaleRadius: false, useLocalExtrema: true, latField: 'lat', lngField: 'lng', valueField: 'count' });
+        heatmapOverlay.addTo(map);
+      }
+      overlayLayer = L.layerGroup().addTo(map);
+    }
+
+    function setMapLocationScope(loc) { state.mapLocScope = loc; if (loc !== 'campus') state.inspectorLoc = loc; renderHeatmap(); }
+    function setMapCategory(cat) { state.mapCategory = cat; renderHeatmap(); }
+    function setMapScope(scope) { state.mapScope = scope; document.getElementById('scopeAllBtn').classList.toggle('active', scope==='all'); document.getElementById('scopeActiveBtn').classList.toggle('active', scope==='active'); renderHeatmap(); }
+
+    function renderHeatmap() {
+      if (!state.session || state.session.role !== 'admin') return;
+      document.getElementById('mapLocationSelect').innerHTML = '<option value="campus">Complete RGUKT Basar Campus Heatmap</option>' + LOCATIONS.map(l => `<option value="${l}" ${state.mapLocScope===l?'selected':''}>Location Heatmap: ${l}</option>`).join('');
+      document.getElementById('backCampusBtn').classList.toggle('hidden', state.mapLocScope === 'campus');
+      document.getElementById('mapHeaderTitle').textContent = state.mapLocScope === 'campus' ? 'RGUKT Basar — Complete Campus Heatmap' : 'RGUKT Basar — ' + state.mapLocScope + ' Heatmap';
+      document.getElementById('mapCategoryFilters').innerHTML = ['All', ...CATEGORIES].map(c => `<button class="seg-btn ${state.mapCategory===c?'active':''}" onclick="setMapCategory('${c}')">${c}</button>`).join('');
+
+      const baseFiltered = state.complaints.filter(c => (state.mapCategory === 'All' || c.category === state.mapCategory) && (state.mapScope === 'all' || c.status !== 'Resolved'));
+      const locFiltered = state.mapLocScope === 'campus' ? baseFiltered : baseFiltered.filter(c => c.location === state.mapLocScope);
+      document.getElementById('mapVisibleCount').textContent = locFiltered.length + ' records';
+
+      if (overlayLayer) overlayLayer.clearLayers();
+      const heatPoints = [];
+      const maxCount = Math.max(...LOCATIONS.map(l => baseFiltered.filter(c => c.location === l).length), 1);
+
+      if (state.mapLocScope === 'campus') {
+        LOCATIONS.forEach(loc => {
+          const coord = state.coords[loc];
+          const count = baseFiltered.filter(c => c.location === loc).length;
+          if (count > 0) heatPoints.push({ lat: coord.lat, lng: coord.lng, count });
+          const ratio = count / maxCount;
+          const fill = count === 0 ? '#94a3b8' : ratio >= 0.78 || count >= 4 ? '#dc2626' : ratio >= 0.55 || count === 3 ? '#ea580c' : ratio >= 0.3 || count === 2 ? '#f59e0b' : '#3b82f6';
+          L.circle([coord.lat, coord.lng], { radius: coord.radiusMeters, color: fill, weight: 1, dashArray: '4 4', fillColor: fill, fillOpacity: 0.08 }).addTo(overlayLayer);
+          const m = L.circleMarker([coord.lat, coord.lng], { radius: 11 + Math.min(count * 3, 14), color: '#fff', weight: 2, fillColor: fill, fillOpacity: 0.9 });
+          m.bindTooltip(`<strong>${esc(loc)}</strong><br/>${count} complaint(s)`);
+          m.on('click', () => setMapLocationScope(loc));
+          m.addTo(overlayLayer);
+        });
+        map.fitBounds(L.latLngBounds(Object.values(state.coords).map(c => [c.lat, c.lng])), { padding: [55, 55], maxZoom: 17 });
+      } else {
+        const coord = state.coords[state.mapLocScope];
+        L.circle([coord.lat, coord.lng], { radius: coord.radiusMeters, color: '#1d4ed8', weight: 2, dashArray: '5 4', fillColor: '#2563eb', fillOpacity: 0.1 }).addTo(overlayLayer);
+        locFiltered.forEach(c => {
+          const off = deterministicSubOffset(c.buildingBlock + '|' + c.floorRoom + '|' + c.id, coord.radiusMeters);
+          const pt = { lat: coord.lat + off.dLat, lng: coord.lng + off.dLng, count: 1 };
+          heatPoints.push(pt);
+          const pinColor = c.status === 'Resolved' ? '#16a34a' : c.status === 'In Progress' ? '#2563eb' : '#dc2626';
+          L.circleMarker([pt.lat, pt.lng], { radius: 7, color: '#fff', weight: 2, fillColor: pinColor, fillOpacity: 0.92 }).bindTooltip(`${esc(c.id)} · ${esc(c.buildingBlock)}`).addTo(overlayLayer);
+        });
+        map.setView([coord.lat, coord.lng], 18, { animate: true });
+      }
+      if (heatmapOverlay) heatmapOverlay.setData({ max: Math.max(maxCount, 3), data: heatPoints });
+
+      document.getElementById('hotspotQuickButtons').innerHTML = `<button class="btn-outline" style="${state.mapLocScope==='campus'?'background:#1d4ed8;color:#fff;border-color:#1d4ed8;':''}" onclick="setMapLocationScope('campus')">All Campus</button>` + LOCATIONS.map(l => `<button class="btn-outline" style="${state.mapLocScope===l?'background:#0f172a;color:#fff;border-color:#0f172a;':''}" onclick="setMapLocationScope('${l}')">${esc(l)} (${baseFiltered.filter(c=>c.location===l).length})</button>`).join('');
+
+      const activeLoc = state.mapLocScope === 'campus' ? state.inspectorLoc : state.mapLocScope;
+      const items = baseFiltered.filter(c => c.location === activeLoc);
+      const coord = state.coords[activeLoc];
+      document.getElementById('inspectorCode').textContent = 'Location Inspector · ' + coord.code;
+      document.getElementById('inspectorName').textContent = activeLoc;
+      document.getElementById('inspectorDesc').textContent = coord.desc;
+      document.getElementById('inspectorCoords').textContent = coord.lat.toFixed(4) + ', ' + coord.lng.toFixed(4);
+      document.getElementById('insTotal').textContent = items.length;
+      document.getElementById('insPending').textContent = items.filter(c => c.status === 'Reported' || c.status === 'Acknowledged').length;
+      document.getElementById('insProgress').textContent = items.filter(c => c.status === 'In Progress').length;
+      document.getElementById('insResolved').textContent = items.filter(c => c.status === 'Resolved').length;
+
+      document.getElementById('inspectorList').innerHTML = items.length ? items.map(c => `<div class="list-item">
+        <div style="display:flex; justify-content:space-between; gap:8px;">
+          <div>
+            <div style="font-size:13px; font-weight:600;">${esc(c.title)}</div>
+            <div class="meta-line"><span class="mono">${esc(c.id)}</span> · <strong>${esc(c.category)}</strong> · ${esc(c.buildingBlock)} (${esc(c.floorRoom)})</div>
+          </div>
+          <span style="font-size:12px; font-weight:600;">${esc(c.status)}</span>
+        </div>
+        <p style="font-size:12px; color:#475569; margin-top:6px;">${esc(c.description)}</p>
+        <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:11px; color:#64748b;">
+          <span>${esc(c.studentName)} (${esc(c.rollNumber)}) · ${fmtDate(c.createdAt)}</span>
+          <a href="tel:${esc(c.studentMobile)}" class="btn-link mono" style="color:#15803d;">Call ${esc(c.studentMobile)}</a>
+        </div>
+      </div>`).join('') : '<div style="padding:30px; text-align:center; color:#64748b; font-size:13px;">No complaints match filter.</div>';
+    }
+
+    function renderAnalytics() {
+      if (!state.session || state.session.role !== 'admin') return;
+      const all = state.complaints, total = all.length;
+      const rep = all.filter(c => c.status === 'Reported').length;
+      const ack = all.filter(c => c.status === 'Acknowledged').length;
+      const prog = all.filter(c => c.status === 'In Progress').length;
+      const res = all.filter(c => c.status === 'Resolved').length;
+      const byCat = CATEGORIES.map(cat => ({ cat, count: all.filter(c => c.category === cat).length }));
+      const topCat = [...byCat].sort((a,b)=>b.count-a.count)[0];
+      const byLoc = LOCATIONS.map(loc => {
+        const items = all.filter(c => c.location === loc);
+        return { loc, total: items.length, rep: items.filter(c=>c.status==='Reported').length, ack: items.filter(c=>c.status==='Acknowledged').length, prog: items.filter(c=>c.status==='In Progress').length, res: items.filter(c=>c.status==='Resolved').length };
+      });
+      const topLoc = [...byLoc].sort((a,b)=>b.total-a.total)[0];
+
+      document.getElementById('kpiTotal').textContent = total;
+      document.getElementById('kpiTotalSub').textContent = `${rep+ack} pending · ${prog} active`;
+      document.getElementById('kpiTopCat').textContent = topCat.cat;
+      document.getElementById('kpiTopCatSub').textContent = `${topCat.count} reports`;
+      document.getElementById('kpiTopLoc').textContent = topLoc.loc;
+      document.getElementById('kpiTopLocSub').innerHTML = `${topLoc.total} issues · <button class="btn-link" onclick="openLocHeatmap('${topLoc.loc}')">Open heatmap</button>`;
+      document.getElementById('kpiResRate').textContent = (total ? Math.round(res*100/total) : 0) + '%';
+      document.getElementById('kpiResSub').textContent = `${res} of ${total} resolved`;
+
+      charts.forEach(c => c.destroy()); charts = [];
+      charts.push(new Chart(document.getElementById('chartCategory'), { type:'bar', data:{ labels:byCat.map(d=>d.cat), datasets:[{ data:byCat.map(d=>d.count), backgroundColor:['#2563eb','#d97706','#059669','#4f46e5','#475569'], borderRadius:6 }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, ticks:{ stepSize:1 } } } } }));
+      charts.push(new Chart(document.getElementById('chartLocation'), { type:'bar', data:{ labels:byLoc.map(d=>d.loc), datasets:[{ label:'Pending', data:byLoc.map(d=>d.rep+d.ack), backgroundColor:'#f59e0b' },{ label:'In Progress', data:byLoc.map(d=>d.prog), backgroundColor:'#2563eb' },{ label:'Resolved', data:byLoc.map(d=>d.res), backgroundColor:'#16a34a' }] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{ stacked:true }, y:{ stacked:true, beginAtZero:true, ticks:{ stepSize:1 } } }, plugins:{ legend:{ position:'bottom' } } } }));
+      charts.push(new Chart(document.getElementById('chartStatus'), { type:'doughnut', data:{ labels:STATUSES, datasets:[{ data:[rep,ack,prog,res], backgroundColor:['#f59e0b','#6366f1','#2563eb','#16a34a'] }] }, options:{ responsive:true, maintainAspectRatio:false, cutout:'62%', plugins:{ legend:{ position:'bottom' } } } }));
+      document.getElementById('analyticsMatrixBody').innerHTML = byLoc.map(r => `<tr style="cursor:pointer;" onclick="openLocHeatmap('${r.loc}')"><td><strong>${esc(r.loc)}</strong></td><td class="mono" style="text-align:right;">${r.total}</td><td class="mono" style="text-align:right;">${r.rep}</td><td class="mono" style="text-align:right;">${r.ack}</td><td class="mono" style="text-align:right;">${r.prog}</td><td class="mono" style="text-align:right;">${r.res}</td></tr>`).join('');
+    }
+    function openLocHeatmap(loc) { state.mapLocScope = loc; state.inspectorLoc = loc; switchTab('heatmap'); }
+
+    function setStudentAuthMode(mode) {
+      document.getElementById('stuTabLogin').classList.toggle('active', mode==='login');
+      document.getElementById('stuTabReg').classList.toggle('active', mode==='register');
+      document.getElementById('studentLoginForm').classList.toggle('hidden', mode!=='login');
+      document.getElementById('studentRegForm').classList.toggle('hidden', mode!=='register');
+      document.getElementById('studentAuthError').classList.add('hidden');
+    }
+    function fillDemoStudent() { setStudentAuthMode('login'); document.getElementById('stuLoginEmail').value = 'sravani@rgukt.ac.in'; document.getElementById('stuLoginPass').value = 'student123'; }
+    function handleStudentLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('stuLoginEmail').value.trim().toLowerCase();
+      const pass = document.getElementById('stuLoginPass').value;
+      const stu = state.students.find(s => s.email.toLowerCase() === email && s.password === pass);
+      if (!stu) { const err = document.getElementById('studentAuthError'); err.textContent = 'Invalid student email or password.'; err.classList.remove('hidden'); return; }
+      state.session = { role:'student', id:stu.id, name:stu.name, email:stu.email, rollNumber:stu.rollNumber, mobileNumber:stu.mobileNumber, department:stu.department };
+      saveStorage(); switchTab('student');
+    }
+    function handleStudentRegister(e) {
+      e.preventDefault();
+      const mobile = normalizeMobile(document.getElementById('stuRegMobile').value);
+      const err = document.getElementById('studentAuthError');
+      if (!mobile) { err.textContent = 'Enter a valid 10-digit Indian mobile number.'; err.classList.remove('hidden'); return; }
+      const email = document.getElementById('stuRegEmail').value.trim().toLowerCase();
+      if (state.students.some(s => s.email.toLowerCase() === email)) { err.textContent = 'Email already exists.'; err.classList.remove('hidden'); return; }
+      const stu = { id:'stu-'+Date.now(), name:document.getElementById('stuRegName').value.trim(), rollNumber:document.getElementById('stuRegRoll').value.trim().toUpperCase(), email, mobileNumber:mobile, department:document.getElementById('stuRegDept').value, password:document.getElementById('stuRegPass').value };
+      state.students.push(stu);
+      state.session = { role:'student', id:stu.id, name:stu.name, email:stu.email, rollNumber:stu.rollNumber, mobileNumber:stu.mobileNumber, department:stu.department };
+      saveStorage(); switchTab('student');
+    }
+    function updateStudentMobile() {
+      const mobile = normalizeMobile(document.getElementById('stuMobileUpdateInput').value);
+      if (!mobile || !state.session) return;
+      state.session.mobileNumber = mobile;
+      const stu = state.students.find(s => s.id === state.session.id);
+      if (stu) stu.mobileNumber = mobile;
+      state.complaints.forEach(c => { if (c.studentId === state.session.id) c.studentMobile = mobile; });
+      saveStorage(); renderStudentView();
+    }
+    function handlePhotoUpload(e) {
+      const file = e.target.files[0]; if (!file) return;
+      const r = new FileReader(); r.onload = () => { state.uploadedPhoto = r.result; }; r.readAsDataURL(file);
+    }
+    function handleComplaintSubmit(e) {
+      e.preventDefault();
+      if (!state.session || state.session.role !== 'student') return;
+      const id = 'CMP-' + (1017 + state.complaints.length);
+      state.complaints.unshift({
+        id, title:document.getElementById('cmpTitle').value.trim(), description:document.getElementById('cmpDesc').value.trim(),
+        category:document.getElementById('cmpCategory').value, location:document.getElementById('cmpLocation').value,
+        buildingBlock:document.getElementById('cmpBlock').value.trim(), floorRoom:document.getElementById('cmpFloor').value.trim() || 'Not specified',
+        status:'Reported', studentId:state.session.id, studentName:state.session.name, rollNumber:state.session.rollNumber, studentMobile:state.session.mobileNumber,
+        createdAt:new Date().toISOString(), imageDataUrl:state.uploadedPhoto || undefined, isDemo:false
+      });
+      state.uploadedPhoto = null; document.getElementById('cmpPhotoInput').value = '';
+      document.getElementById('cmpTitle').value = ''; document.getElementById('cmpBlock').value = ''; document.getElementById('cmpFloor').value = ''; document.getElementById('cmpDesc').value = '';
+      const a = document.getElementById('cmpSubmitAlert'); a.textContent = `Complaint ${id} submitted with status "Reported".`; a.classList.remove('hidden');
+      saveStorage(); renderStudentView();
+    }
+    function renderStudentView() {
+      const isStu = state.session && state.session.role === 'student';
+      document.getElementById('studentAuthPanel').classList.toggle('hidden', isStu);
+      document.getElementById('studentWorkspace').classList.toggle('hidden', !isStu);
+      if (!isStu) return;
+      document.getElementById('stuSessionMeta').textContent = `Student Profile · ${state.session.rollNumber} · ${state.session.department}`;
+      document.getElementById('stuSessionName').textContent = state.session.name;
+      document.getElementById('stuMobileDisplay').textContent = state.session.mobileNumber;
+      document.getElementById('stuMobileUpdateInput').value = state.session.mobileNumber;
+      document.getElementById('cmpCategory').innerHTML = CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('');
+      document.getElementById('cmpLocation').innerHTML = LOCATIONS.map(l=>`<option value="${l}">${l}</option>`).join('');
+      const mine = state.complaints.filter(c => c.studentId === state.session.id);
+      document.getElementById('studentHistoryList').innerHTML = mine.length ? mine.map(c => `<div class="list-item">
+        <div style="display:flex; justify-content:space-between; gap:10px;">
+          <div><div style="font-size:13px; font-weight:600;">${esc(c.title)}</div><div class="meta-line"><span class="mono">${esc(c.id)}</span> · <strong>${esc(c.category)}</strong> · ${esc(c.location)} · ${esc(c.buildingBlock)}</div></div>
+          <span style="font-size:12px; font-weight:600;">${esc(c.status)}</span>
+        </div>
+        <p style="font-size:12px; color:#475569; margin-top:6px;">${esc(c.description)}</p>
+        <div class="meta-line">${fmtDate(c.createdAt)} · Contact: <span class="mono">${esc(c.studentMobile)}</span></div>
+      </div>`).join('') : '<div style="padding:30px; text-align:center; color:#64748b; font-size:13px;">No complaints submitted yet.</div>';
+    }
+
+    function fillDemoAdmin() { document.getElementById('admEmail').value = 'admin@rgukt.ac.in'; document.getElementById('admPass').value = 'admin123'; }
+    function handleAdminLogin(e) {
+      e.preventDefault();
+      if (document.getElementById('admEmail').value.trim().toLowerCase() === 'admin@rgukt.ac.in' && document.getElementById('admPass').value === 'admin123') {
+        state.session = { role:'admin', id:'admin-1', name:'Campus Estates Administrator', email:'admin@rgukt.ac.in' };
+        saveStorage(); switchTab('heatmap');
+      } else {
+        const err = document.getElementById('adminAuthError'); err.textContent = 'Invalid administrator credentials.'; err.classList.remove('hidden');
+      }
+    }
+    function logoutSession() { state.session = null; saveStorage(); switchTab('student'); }
+    function renderAdminView() {
+      const isAdm = state.session && state.session.role === 'admin';
+      document.getElementById('adminAuthPanel').classList.toggle('hidden', isAdm);
+      document.getElementById('adminWorkspace').classList.toggle('hidden', !isAdm);
+      if (!isAdm) return;
+      document.getElementById('admFilterCat').innerHTML = '<option value="All">All Categories</option>' + CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('');
+      document.getElementById('admFilterLoc').innerHTML = '<option value="All">All Locations</option>' + LOCATIONS.map(l=>`<option value="${l}">${l}</option>`).join('');
+      renderAdminTable();
+    }
+    function renderAdminTable() {
+      const q = document.getElementById('admSearch').value.toLowerCase().trim();
+      const cat = document.getElementById('admFilterCat').value;
+      const loc = document.getElementById('admFilterLoc').value;
+      const st = document.getElementById('admFilterStatus').value;
+      const list = state.complaints.filter(c => (cat==='All'||c.category===cat) && (loc==='All'||c.location===loc) && (st==='All'||c.status===st) && (!q || c.id.toLowerCase().includes(q) || c.title.toLowerCase().includes(q) || c.studentName.toLowerCase().includes(q) || (c.studentMobile||'').includes(q)));
+      document.getElementById('adminTableBody').innerHTML = list.map(c => `<tr>
+        <td class="mono">${esc(c.id)}</td>
+        <td><strong>${esc(c.title)}</strong><div style="font-size:11px; color:#64748b;">${esc(c.buildingBlock)} · ${esc(c.floorRoom)}</div></td>
+        <td>${esc(c.category)}</td>
+        <td><button class="btn-link" onclick="openLocHeatmap('${c.location}')">${esc(c.location)}</button></td>
+        <td>${esc(c.studentName)} (${esc(c.rollNumber)})<div><a href="tel:${esc(c.studentMobile)}" class="btn-link mono" style="color:#15803d;">${esc(c.studentMobile)}</a></div></td>
+        <td class="mono">${fmtDate(c.createdAt)}</td>
+        <td><select onchange="updateStatus('${c.id}', this.value)" style="width:auto; padding:5px;">${STATUSES.map(s=>`<option value="${s}" ${c.status===s?'selected':''}>${s}</option>`).join('')}</select></td>
+        <td style="text-align:right;"><button class="btn-link" style="color:#b91c1c;" onclick="deleteCmp('${c.id}')">Delete</button></td>
+      </tr>`).join('');
+    }
+    function updateStatus(id, st) { const c = state.complaints.find(x=>x.id===id); if (c) { c.status = st; saveStorage(); } }
+    function deleteCmp(id) { state.complaints = state.complaints.filter(x=>x.id!==id); saveStorage(); renderAdminTable(); }
+    function toggleCoordEditor() {
+      const el = document.getElementById('coordEditorCard'); el.classList.toggle('hidden');
+      document.getElementById('coordInputsGrid').innerHTML = LOCATIONS.map(l => { const c = state.coords[l]; return `<div style="padding:10px; border:1px solid #e2e8f0; border-radius:8px;"><strong>${esc(l)}</strong><div class="form-grid" style="margin-top:6px; gap:6px;"><input type="number" step="0.0001" id="lat-${l}" value="${c.lat}" /><input type="number" step="0.0001" id="lng-${l}" value="${c.lng}" /></div></div>`; }).join('');
+    }
+    function saveCoords() { LOCATIONS.forEach(l => { state.coords[l].lat = parseFloat(document.getElementById('lat-'+l).value); state.coords[l].lng = parseFloat(document.getElementById('lng-'+l).value); }); saveStorage(); }
+    function resetCoords() { state.coords = JSON.parse(JSON.stringify(DEFAULT_COORDS)); saveStorage(); toggleCoordEditor(); }
+    function resetDemoData() { state.complaints = JSON.parse(JSON.stringify(DEMO_COMPLAINTS)); state.coords = JSON.parse(JSON.stringify(DEFAULT_COORDS)); saveStorage(); renderAdminTable(); }
+    function exportCsv() {
+      const rows = [['ID','Title','Category','Location','Building','Status','Student','Mobile'].join(',')].concat(state.complaints.map(c=>[c.id,c.title,c.category,c.location,c.buildingBlock,c.status,c.studentName,c.studentMobile].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')));
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv'})); a.download='rgukt-basar-complaints.csv'; a.click();
+    }
+    function closePhotoModal() { document.getElementById('photoModal').classList.add('hidden'); }
+    window.addEventListener('DOMContentLoaded', () => { loadStorage(); navigateHome(); });
+  </script>
+</body>
+</html>
